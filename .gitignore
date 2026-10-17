@@ -64,6 +64,13 @@ memory_*.md
 /screenshots/
 /artifacts/
 /.improve-loop/
+/private/
+/auth/
+/output/
+/work/
+/workspace/
+/logs/
+/backups/
 *.sqlite
 *.sqlite-*
 *.sqlite3
@@ -79,6 +86,8 @@ memory_*.md
 !.env.template
 credentials.json
 secrets.json
+credentials.*.json
+secrets.*.json
 *.key
 *.pem
 *.p12
@@ -138,3 +147,14 @@ temp/
 *.app/
 *.dmg
 *.pkg
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.bak
+*.orig
+*.rej
+*.har
+/.auth/
+/playwright/.auth/

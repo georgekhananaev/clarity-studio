@@ -109,8 +109,12 @@ class ConfigStore:
             connection.execute("INSERT INTO preferences (namespace, value) VALUES (?, ?) ON CONFLICT(namespace) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP", (namespace, payload))
             connection.commit()
 
-    def update(self, namespace: str, patch: dict) -> dict:
-        """Atomically merge a partial object without losing concurrent changes."""
+    def update(self, namespace: str, patch: dict, *, nested: bool = False, validate: Callable[[dict], dict] | None = None) -> dict:
+        """Atomically merge a partial object without losing concurrent changes.
+
+        A validator runs inside the transaction, before anything is written.
+        Nested merging is opt-in for settings with provider-specific objects.
+        """
         self._namespace(namespace)
         if not isinstance(patch, dict):
             raise ConfigError("A preferences update must be a JSON object.")
@@ -123,7 +127,15 @@ class ConfigStore:
                 raise ConfigError("Saved preferences are invalid. Existing files were preserved.") from None
             if not isinstance(current, dict):
                 raise ConfigError("Only object preferences can receive a partial update.")
-            updated = {**current, **patch}
+            def merge(original, changes):
+                result = dict(original)
+                for key, value in changes.items():
+                    result[key] = merge(result[key], value) if nested and isinstance(result.get(key), dict) and isinstance(value, dict) else value
+                return result
+
+            updated = merge(current, patch)
+            if validate is not None:
+                updated = validate(updated)
             payload = _preferences_json(updated)
             connection.execute("INSERT INTO preferences (namespace, value) VALUES (?, ?) ON CONFLICT(namespace) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP", (namespace, payload))
             connection.commit()

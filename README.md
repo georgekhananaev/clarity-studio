@@ -1,59 +1,71 @@
+<p align="center"><img src="web/logo.svg" width="260" alt="Clarity Studio"></p>
+
 # Clarity Studio
 
-A local subtitle workspace for screen recordings. An AI can inspect timestamped
-video frames and edit captions through Python commands. You can review the same
-captions beside the video in a browser, adjust timing, export subtitles, and
-optionally generate a Drama 3 voiceover.
+Turn screen recordings into clear, timed explanations. Clarity Studio combines
+a local browser editor with a JSON CLI that AI agents can use to inspect frames,
+write captions, and export subtitles without browser automation.
 
-## Open the editor
+Built for macOS. Your recordings and projects stay on your machine. Optional
+speech generation connects to OpenRouter or a local speech server.
 
-Double-click **Launch Clarity.command** in this folder, or run:
+- **Edit and review:** video preview, caption editor, timeline, timing shortcuts,
+  resizable panels, and saved appearance/playback preferences.
+- **Work with AI:** timestamped frames, contact sheets, a task brief, revision
+  checks, and machine-readable command discovery.
+- **Export:** SRT, WebVTT, text, project JSON, and video with captions burned in.
+- **Add narration:** per-caption speech, cached audio, MP3/WAV tracks, and
+  narrated video with timing validation.
+
+Clarity prepares the evidence and manages captions; your AI agent supplies the
+visual understanding and explanations. It does not automatically transcribe
+speech or generate explanations on its own.
+
+## Quick start
+
+You need **macOS**, **Python 3.12 or newer**, [Homebrew](https://brew.sh), and
+[uv](https://docs.astral.sh/uv/getting-started/installation/). Git is needed for
+the development/publication checks. Node.js is needed only for JavaScript tests.
+
+Download or clone this repository, open its folder in Terminal, then run:
 
 ```sh
+./setup.command
 ./clarity-cli serve --open
 ```
 
-The app runs at **http://localhost:8765** and binds only to the loopback interface.
-Opening the launcher again reuses this workspace's existing server. Stop the
-server with Ctrl+C in its terminal. A labeled 12-second sample is included in the
-local workspace so you can try the editor immediately.
+Setup installs the locked Python dependencies and the prebuilt Homebrew
+`ffmpeg-full` package when needed. It does not compile the application. The
+editor opens at **http://localhost:8765**. You can also double-click
+**Launch Clarity.command** after setup. Keep that terminal open; Ctrl+C stops
+the server.
 
-Use **New recording** to choose a video or enter its absolute path. Choosing a
-file copies it into local storage. Importing a path references the original file
-without copying; keep it at that location. Browsers cannot play every video
-codec: **Create preview** converts an incompatible recording to H.264 locally.
-
-## Let an AI create the captions
-
-Tell the AI working in this folder:
-
-> Create explanatory subtitles for my recording at /absolute/path/recording.mov.
-> Follow AGENTS.md. Inspect the video frames, write short explanations of the
-> visible actions, validate the timings, and export an SRT file.
-
-The tool prepares evidence and manages captions. **It does not generate
-explanations by itself**: your AI agent supplies the visual understanding and
-wording. No external model key is needed when the agent uses its own image tools.
-The **Prepare for AI** button creates timestamped contact sheets and a task brief;
-it does not upload your recording or call a model.
-
-The same workflow is available through commands:
+The library starts empty. Choose **New recording** to upload a managed copy or
+reference an existing video by its full path. No API key is needed to edit,
+inspect, or export captions. To create a labeled 12-second practice recording:
 
 ```sh
-./clarity-cli doctor
-./clarity-cli import /absolute/path/recording.mov --title "Settings walkthrough"
-./clarity-cli list
-./clarity-cli show PROJECT_ID
-./clarity-cli inspect PROJECT_ID --every 5 --max-frames 48
-./clarity-cli frame PROJECT_ID --time 12.5 --width 0
+.venv/bin/python scripts/create_sample.py
 ```
 
-Inspect the returned contact sheets and individual frames with an image viewing
-tool. The interval increases automatically to cover the whole recording when
-the frame limit is reached. Sampled frames do not show every event; inspect
-additional moments near transitions and use the user's context for intent.
+If a codec will not play, choose **Create preview** to make a local H.264 copy.
+See [troubleshooting](docs/troubleshooting.md) for setup and playback issues.
 
-Write a JSON file:
+## A caption workflow for AI agents
+
+Start with the [AI CLI guide](docs/ai-cli.md) and the
+[operation coverage map](docs/cli-coverage.md). Discover commands with:
+
+```sh
+./clarity-cli capabilities
+./clarity-cli doctor
+./clarity-cli import /absolute/path/recording.mp4 --title "Feature walkthrough"
+./clarity-cli show PROJECT_ID
+./clarity-cli inspect PROJECT_ID --every 5 --max-frames 48
+```
+
+Replace `PROJECT_ID` with the returned ID. View the extracted contact sheets and
+inspect additional frames around transitions. Write a JSON caption array:
 
 ```json
 [
@@ -62,271 +74,63 @@ Write a JSON file:
 ]
 ```
 
-Then apply it using the revision returned by `show`:
+Save it under the ignored project directory. Re-read the project, preserve
+existing cue IDs when editing, and apply the current revision:
 
 ```sh
-./clarity-cli cues PROJECT_ID --file /absolute/path/cues.json --revision 0
+./clarity-cli cues PROJECT_ID --file /absolute/path/cues.json --revision REVISION
 ./clarity-cli validate PROJECT_ID
 ./clarity-cli export PROJECT_ID --format srt
-./clarity-cli render PROJECT_ID
 ```
 
-`cues` replaces the caption list, so include every caption you want to keep.
-Retain caption IDs when editing existing entries. Each save validates times and
-overlaps, checks the revision to protect concurrent edits, and keeps the previous
-project JSON under `history/`. A single addition is also possible:
+`cues` replaces the full caption list. Revision conflicts require reviewing and
+merging changes. The CLI works directly on local files; no web server is needed
+for this workflow. Operation results are JSON; failures exit nonzero with a JSON
+error on stderr.
 
-```sh
-./clarity-cli add PROJECT_ID --start 8 --end 11 --text "Save your changes."
-```
+## Narration
 
-All commands produce machine-readable JSON. Failures exit nonzero and write a
-JSON error to stderr. Export formats: `srt`, `vtt`, `json`, `txt`.
+Configure connections in **Preferences → Integrations**, then open **Add AI
+narration** to select a speech model and a supported voice. OpenRouter's catalog
+includes Drama 3 when available; some models require a voice ID from the
+provider's own library. Kokoro-FastAPI, Speaches, and other local servers must
+implement an OpenAI-compatible `/audio/speech` endpoint. Clarity does not install
+the models or run their inference servers.
 
-## Reviewing and editing
+Generating speech sends caption text to the selected provider. **OpenRouter
+generation uses your credits.** Model discovery and connection tests generate
+no speech. The AI workflow requires explicit approval before generating audio.
+Existing matching audio is reused, and paid requests are not retried
+automatically. Listen to the result: a valid audio response can still misread
+symbols or add unwanted words. Spell out button names such as “left bracket”
+when needed.
 
-The desktop editor keeps the video, captions, and timeline in one window. Filter
-recordings by title in the sidebar, or use the chevron beside the logo to collapse
-it. Drag the sidebar's right edge to resize it; double-click the edge to reset its
-width. With the edge focused, **← / →** changes the width by 16 pixels and
-**Home / End** selects the minimum or maximum. **Escape** cancels an active drag.
-Your chosen width saves locally and returns when a narrow window is widened.
+Exports require current audio that fits every caption. Adjust wording or timing
+for overlong clips. Narrated video replaces the original audio; ordinary
+captioned video preserves it. See the [full guide](docs/user-guide.md#speech-models-openrouter-and-local-servers).
 
-Drag the divider between the video and caption panels to adjust their widths;
-when focused, use **← / →** (or **Home / End**) to resize it with the keyboard.
-Panel widths also persist. Narrow windows stack the panes and scroll normally.
+## Privacy and storage
 
+Projects, revision history, generated media, and nonsecret preferences live under
+`projects/` by default. Remembered API keys use **macOS Keychain**; session-only
+keys stay in the running server. The settings database does not store API keys.
+An optional `CLARITY_PROJECTS_DIR` changes the data root.
 
-- Click a caption or its timeline block to seek to it.
-- Press **Space** to play/pause, or **← / →** to move one second.
-- Press **N** in a gap to add a caption at the playhead.
-- Press **[ / ]** to set the selected caption's start/end to the playhead.
-- Press **⌘S / Ctrl+S** to save. Save is explicit; unsaved edits are marked.
-- Press **⌘, / Ctrl+,** to open Preferences, at the bottom left.
-- Type freely in text fields; playback shortcuts are disabled while typing.
-- Changes made through the CLI appear in the editor when it has no unsaved edits.
+The editor binds to loopback and is intended for one local user. It is not a
+multi-user or internet-hosted service. Contact sheets are created locally; an
+external AI agent may send those images to its own model service. Project JSON
+exports contain local media paths. Read [privacy and data flow](docs/privacy.md)
+before sharing projects, logs, or recordings.
 
-Caption text appears over the video immediately, including unsaved changes.
-SRT and VTT remain separate subtitle files. Exported MP4 captions are burned in.
-The JSON export includes local media paths; it is an editable project record,
-not a portable copy of the original video.
+## Documentation and contributing
 
-## Speech models: OpenRouter and local servers
+- [User guide](docs/user-guide.md): UI, shortcuts, exports, speech setup, storage, API.
+- [AI CLI guide](docs/ai-cli.md): safe, browser-free caption and narration workflows.
+- [CLI coverage](docs/cli-coverage.md): application operations and CLI equivalents.
+- [Development](docs/development.md): setup, tests, architecture, and public-source checks.
+- [Troubleshooting](docs/troubleshooting.md): common problems and fixes.
+- [Contributing](CONTRIBUTING.md): issues, changes, and pull requests.
+- [Security](SECURITY.md): vulnerability reporting and supported scope.
 
-Open **Add AI narration** in the editor. Choose **OpenRouter** or **Local server**,
-select a speech model and a voice, and generate audio for all captions or just the
-selected caption. Connection setup lives in **Preferences → Integrations**, linked from the
-narration panel. Configuring an integration does not change your selected
-narration provider. The model picker is searchable. Model, voice, and delivery choices save automatically when edited or when the panel closes; unsaved API key fields are never included in that background save.
-
-OpenRouter's live speech catalog is loaded from its public API. Drama 3 is pinned
-first initially. Voice lists are shown when the model publishes them; Drama 3
-and some other providers require you to enter a voice ID from their own library.
-Custom model and voice IDs remain available if a catalog is incomplete.
-**Refresh models** loads current metadata, with a saved cloud catalog available
-when OpenRouter cannot be reached.
-
-### Connecting OpenRouter
-
-Open **Preferences → Integrations → OpenRouter** and enter your API key in the
-password field. Integrations can be configured before importing a recording.
-**Save connection** saves the key securely in macOS Keychain by default, so it is available after restarts. Uncheck **Save this key securely in macOS Keychain** to keep a new key only in the running server's memory. A new
-session key can override a previously remembered key for that session. The key
-is cleared from the browser field after saving, and when the panel closes.
-
-**Test connection** checks authentication without generating audio. Browsing the
-model catalog and testing authentication do not spend speech credits. Generate
-narration only when you intend to use your OpenRouter credits.
-
-Keys are never returned by the settings API, written into project JSON, or
-stored in browser local storage. **Remove saved key** removes the Keychain copy
-and disables the key for this server session. If a terminal environment variable
-supplies the key, remove that variable too before restarting the server.
-
-You can still provide `OPENROUTER_API_KEY` in your terminal instead. In zsh:
-
-```sh
-read -s 'OPENROUTER_API_KEY?OpenRouter API key: '
-export OPENROUTER_API_KEY
-./clarity-cli serve --open
-```
-
-Restart an already running server to change its inherited environment. The
-launcher does not automatically load `.env` files. Session-only browser keys are
-available to the running HTTP server; CLI processes need an environment key or a
-remembered Keychain key.
-
-### Connecting local speech models
-
-Open **Preferences → Integrations → Local server** and choose a preset, or enter
-your own API base URL:
-
-- Kokoro-FastAPI: `http://127.0.0.1:8880/v1`
-- Speaches: `http://127.0.0.1:8000/v1`
-- Custom: any compatible speech server on loopback or a private LAN IP.
-
-The local server must already be running and implement `POST /audio/speech`
-relative to its API base URL. A server that only supports text chat does not
-satisfy this interface. Clarity connects to the server; it does not install or
-start a local model runtime. An API key is optional for local servers. Local
-credentials are scoped to the saved endpoint and are separate from OpenRouter.
-
-**Test connection** and **Refresh models** inspect `/models` and `/audio/voices`.
-If a server does not publish those metadata routes, enter its model and voice IDs
-manually. A successful metadata check alone does not prove generation works;
-only an explicitly requested generation tests that. Delivery instructions are
-sent to OpenRouter; local speech requests use the core compatible fields.
-
-For a CLI-only local setup:
-
-```sh
-export CLARITY_LOCAL_BASE_URL=http://127.0.0.1:8880/v1
-./clarity-cli speech-models --provider local
-./clarity-cli narrate PROJECT_ID --provider local --model kokoro --voice af_heart
-```
-
-The saved browser connection takes precedence over the default base URL. An
-optional local API key can be supplied with `CLARITY_LOCAL_API_KEY`.
-
-### Generate, listen, and export
-
-```sh
-./clarity-cli speech-models --provider openrouter
-./clarity-cli speech-settings
-./clarity-cli narrate PROJECT_ID --provider openrouter --model fish-audio/drama-3 --voice YOUR_VOICE_ID
-./clarity-cli narrate PROJECT_ID --provider local --model kokoro --voice af_heart --cue CAPTION_ID
-./clarity-cli validate PROJECT_ID
-./clarity-cli audio PROJECT_ID --format mp3
-./clarity-cli audio PROJECT_ID --format wav
-./clarity-cli render PROJECT_ID --narrated
-```
-
-Listen to individual generated segments beside each caption. Open the narration
-panel to export a standalone MP3 or WAV track with silence between captions to
-preserve their timing. A copy is kept in the recording's `exports/` folder.
-
-Generation sends caption text to the selected speech provider, not the video.
-OpenRouter generation uses your credits; local generation stays on your configured
-local server. Each caption is generated separately and cached by provider, server,
-model, voice, delivery, and text. Matching audio is reused, paid requests are not
-automatically retried, and completed segments survive interrupted tasks.
-
-Generated audio is measured. If it is too long, shorten the wording or extend the
-caption into available space. Text edits mark older audio as stale. Timed audio
-and narrated-video exports require every segment to be present, current, and
-within its caption's duration. Speech is never silently truncated. Changing the
-selected model or voice takes effect when you generate again; existing audio
-retains its recorded provider/model identity. Narrated video exports replace the
-original audio; ordinary captioned video exports preserve it.
-
-Provider references: [OpenRouter speech API](https://openrouter.ai/docs/guides/overview/multimodal/tts),
-[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI),
-[Speaches](https://github.com/speaches-ai/speaches).
-
-## Preferences and private storage
-
-Open **Preferences** at the bottom left of the sidebar, or press
-**⌘, / Ctrl+,**. **General** contains appearance, playback speed, and preview
-caption size. **Integrations** contains OpenRouter and local-server connections,
-API keys, and connection testing. The compact dark style is the default. Playback
-mute state, the last recording, and the last Preferences tab also persist. Preview caption size affects the editor only; exported
-videos keep their existing subtitle styling. The interface uses the Mac's Avenir
-Next font, with system fallbacks and no remote font downloads.
-
-Configuration is stored in **`projects/.local/settings.sqlite3`** by default.
-SQLite transactions protect preference writes and concurrent partial updates.
-The `.local` directory uses owner-only permissions (`0700`), and the database
-uses `0600`. `CLARITY_PROJECTS_DIR` moves both projects and this configuration.
-The old `_speech-settings.json` is imported once after validation and remains as
-an ignored recovery backup. Subsequent saves use SQLite; the old file cannot
-replace newer database preferences.
-
-**The database contains nonsecret preferences. API tokens remain in macOS
-Keychain**, or in server memory when session-only storage is chosen. Keeping
-secrets in the OS credential vault avoids embedding a decryption key beside the
-database. A copied database does not include your API keys. The settings API
-returns credential status, never the token. A database backup alone therefore
-does not back up your Keychain credentials.
-
-The root `.gitignore` excludes projects, configuration databases and sidecars,
-recordings, generated subtitles and audio/video, environment and credential
-files, app bundles, caches, logs, screenshots, and temporary artifacts. Source
-files, SVG assets, and `uv.lock` remain eligible for version control. Ignoring a
-file does not untrack a file previously added to Git; this workspace had no Git
-repository at the time these rules were added. Never force-add private files.
-
-## Storage and HTTP API
-
-Each recording lives under `projects/PROJECT_ID/`:
-
-```text
-project.json           Saved captions, video reference, revision
-history/               Previous saved revisions
-frames/                Timestamped evidence frames
-inspection/            Contact sheets, manifest.json, AI-BRIEF.md
-narration/             Cached voice segments and durations
-exports/               Subtitles and rendered MP4 files
-preview.mp4            Optional browser-compatible copy
-```
-
-Set `CLARITY_PROJECTS_DIR` to use another data directory. Aegisub remains installed
-as `Aegisub.app` and can open exported SRT files for further editing.
-
-The local API has an OpenAPI schema at `/openapi.json`. Useful endpoints:
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/health`, `GET /api/doctor` | Session and dependency checks |
-| `GET/PUT /api/preferences` | Editor preferences (partial updates), plus local storage locations |
-| `GET/PUT /api/speech/settings` | Preferences, credentials submission, and redacted key status |
-| `PATCH /api/speech/preferences` | Save model/voice/delivery choices without changing connection URLs or keys |
-| `POST /api/speech/discover` | Model/voice discovery; body `{ "provider": "openrouter" }` or `local` |
-| `POST /api/speech/test` | Test the saved connection without generating speech |
-| `GET /api/projects` | List recordings |
-| `POST /api/projects` | Import `{ "path": "/absolute/video.mov" }` |
-| `POST /api/upload` | Multipart video upload, field `file` |
-| `GET /api/projects/{id}` | Read project, revision, warnings, narration status |
-| `PUT /api/projects/{id}/cues` | Save `{ "revision": N, "cues": [...] }` |
-| `GET /api/projects/{id}/frame?time=12.5&width=0` | Inspect a specific frame |
-| `GET /api/projects/{id}/export/srt` | Download subtitles |
-| `POST /api/projects/{id}/inspect` | Prepare frames; body `{ "every": 5, "max_frames": 48 }` |
-| `POST /api/projects/{id}/render?narrated=false` | Render a captioned MP4 |
-| `POST /api/projects/{id}/preview` | Generate a compatible browser preview |
-| `POST /api/projects/{id}/narrate` | Generate speech using saved preferences, or override `provider`, `model`, `voice`, and `cue_ids` |
-| `POST /api/projects/{id}/audio?format=mp3` | Export the generated timed narration track as MP3 or WAV |
-| `GET /api/jobs/{job_id}` | Poll task status and artifact paths |
-
-Long tasks return a `job_id`. CLI tasks run synchronously. The browser uses byte
-range requests for seeking. The server rejects cross-origin requests and unknown
-Host headers; it is intended for local use, not internet hosting.
-
-## Installation and development
-
-Already installed in this workspace: Python environment, FFmpeg, and FFprobe.
-For a new Mac with Python, Homebrew, and uv installed, run:
-
-```sh
-./setup.command
-```
-
-Setup installs prebuilt Homebrew bottles and Python wheels only. FFmpeg's full
-package includes libass for subtitle rendering. The tool uses its keg directly
-without changing your shell configuration. `CLARITY_FFMPEG` and
-`CLARITY_FFPROBE` can point to alternative executable paths.
-
-There is no Node toolchain or application build step. The frontend is plain
-HTML/CSS/JavaScript served by FastAPI. Python dependencies are recorded in
-`pyproject.toml` and locked in `uv.lock`.
-
-```sh
-.venv/bin/python -m pytest -q
-node --check web/app.js
-node --check web/speech.js
-node --check web/preferences.js
-node --test tests/speech-state.test.cjs
-```
-
-Tests cover timing, concurrency, exports, local request boundaries, media seeking,
-real FFmpeg extraction/rendering, and mocked narration. They do not spend credits.
-Use `.venv/bin/python scripts/create_sample.py` to create the optional sample
-workspace on a new installation.
+Created by **George Khananaev**. See [LICENSE](LICENSE) for the source license.
+Model services, dependencies, and user-supplied media have their own terms.

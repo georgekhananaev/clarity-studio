@@ -5,7 +5,6 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -17,6 +16,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .media import doctor, frame, inspect_video, probe
 from .models import Cue, Project, subtitle_text
 from .output import browser_preview, export, export_audio, narrate, narration_status, render
+from .settings import EditorPreferences, PreferencePatch, editor_preferences as read_editor_preferences, update_editor_preferences
 from .speech import Provider, SpeechPreferences, SpeechService, SpeechSettings
 from .store import ROOT, ConflictError, Store
 
@@ -46,7 +46,7 @@ class NarrationRequest(BaseModel):
 
 
 class ConnectionRequest(BaseModel):
-    settings: SpeechSettings
+    settings: SpeechSettings | None = None
     credential_provider: Provider | None = None
     api_key: SecretStr | None = None
     remember_key: bool = False
@@ -63,32 +63,6 @@ class SpeechChoiceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     provider: Provider
     preferences: SpeechPreferences
-
-
-class EditorPreferences(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    appearance: Literal["light", "dark", "system"] = "dark"
-    playback_speed: Literal[0.5, 0.75, 1, 1.5, 2] = 1
-    muted: bool = False
-    caption_size: Literal[18, 22, 28] = 22
-    sidebar_collapsed: bool = False
-    sidebar_width: int = Field(default=216, ge=168, le=360, strict=True)
-    preview_share: float = Field(default=0.66, ge=0.5, le=0.75, allow_inf_nan=False)
-    preferences_pane: Literal["general", "integrations"] = "general"
-    last_project: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_-]{1,100}$")
-
-
-class PreferencePatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    appearance: Literal["light", "dark", "system"] | None = None
-    playback_speed: Literal[0.5, 0.75, 1, 1.5, 2] | None = None
-    muted: bool | None = None
-    caption_size: Literal[18, 22, 28] | None = None
-    sidebar_collapsed: bool | None = None
-    sidebar_width: int | None = Field(default=None, ge=168, le=360, strict=True)
-    preview_share: float | None = Field(default=None, ge=0.5, le=0.75, allow_inf_nan=False)
-    preferences_pane: Literal["general", "integrations"] | None = None
-    last_project: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_-]{1,100}$")
 
 
 def create_app(store: Store | None = None, speech: SpeechService | None = None) -> FastAPI:
@@ -172,17 +146,15 @@ def create_app(store: Store | None = None, speech: SpeechService | None = None) 
 
     @app.get("/api/health")
     def health():
-        return {"app": "clarity-studio", "version": "0.1.0", "workspace": str(ROOT), "narration_configured": speech.public_settings()["keys"]["openrouter"]["configured"], "default_voice": os.environ.get("OPENROUTER_VOICE", "")}
+        return {"app": "clarity-studio", "version": "0.1.0", "workspace": str(ROOT), "projects_directory": str(store.root), "narration_configured": speech.public_settings()["keys"]["openrouter"]["configured"], "default_voice": os.environ.get("OPENROUTER_VOICE", "")}
 
     @app.get("/api/preferences")
     def editor_preferences():
-        values = EditorPreferences.model_validate(speech.config.get("editor", {}))
-        return {**values.model_dump(), "storage": {"database": str(speech.config.path), "projects": str(store.root), "credentials": "macOS Keychain"}}
+        return read_editor_preferences(speech)
 
     @app.put("/api/preferences")
     def save_editor_preferences(body: PreferencePatch):
-        speech.config.update("editor", body.model_dump(exclude_none=True))
-        return editor_preferences()
+        return update_editor_preferences(speech, body.model_dump(exclude_unset=True))
 
     @app.get("/api/speech/settings")
     def speech_settings():
@@ -190,6 +162,18 @@ def create_app(store: Store | None = None, speech: SpeechService | None = None) 
 
     @app.put("/api/speech/settings")
     def save_speech_settings(body: ConnectionRequest):
+        if body.settings is None:
+            # Credential-only clients must not copy old settings back over a
+            # concurrent editor/CLI change just to update a session or key.
+            if body.credential_provider is None:
+                raise HTTPException(status_code=422, detail="Provide settings or an explicit credential provider for a key-only request.")
+            if body.clear_key:
+                return speech.clear_key(body.credential_provider)
+            if body.api_key is not None:
+                return speech.set_key(body.credential_provider, body.api_key.get_secret_value(), body.remember_key)
+            if body.remember_key:
+                return speech.remember_key(body.credential_provider)
+            raise ValueError("Provide a key, choose Keychain storage, or request key removal.")
         return speech.save(body.settings, body.api_key.get_secret_value() if body.api_key else None, body.remember_key, body.clear_key, body.credential_provider)
 
     @app.patch("/api/speech/preferences")

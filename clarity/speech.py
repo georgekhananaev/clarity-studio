@@ -11,7 +11,7 @@ from typing import Literal
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from .config import ConfigStore
 from .store import Store, atomic_write
@@ -81,7 +81,6 @@ class Credentials:
     def __init__(self):
         self.session: dict[str, str] = {}
         self.session_sources: dict[str, str] = {}
-        self.cached: dict[str, tuple[str, str]] = {}
         self.lock = threading.Lock()
 
     @staticmethod
@@ -100,23 +99,23 @@ class Credentials:
         with self.lock:
             if account in self.session:
                 return self.session[account], self.session_sources.get(account, "session") if self.session[account] else "none"
+            prefer_keychain = self.session_sources.get(account) == "keychain"
         env = "OPENROUTER_API_KEY" if provider == "openrouter" else "CLARITY_LOCAL_API_KEY"
-        value = os.environ.get(env, "").strip()
+        value = "" if prefer_keychain else os.environ.get(env, "").strip()
         if value:
             return value, "environment"
-        with self.lock:
-            if account in self.cached:
-                return self.cached[account]
         try:
             value = self.keychain().get_password("Clarity Studio Speech", account)
         except Exception:
             value = None
-        result = (value, "keychain") if value else ("", "none")
-        with self.lock:
-            self.cached[account] = result
-        return result
+        # Query on every read: the browser and independent CLI processes must
+        # observe remembered-key additions, replacements, and removals.
+        return (value, "keychain") if value else ("", "none")
 
     def set(self, provider: str, endpoint: str, key: str, remember: bool = False):
+        if not isinstance(key, str) or not key.strip() or any(character.isspace() for character in key.strip()):
+            raise ValueError("Enter a nonempty API key without whitespace.")
+        key = key.strip()
         account = provider if provider == "openrouter" else f"local:{endpoint}"
         if remember:
             try:
@@ -124,9 +123,11 @@ class Credentials:
             except Exception:
                 raise ValueError("Could not save this key in macOS Keychain. Try session-only storage.") from None
         with self.lock:
-            self.session[account] = key
+            if remember:
+                self.session.pop(account, None)
+            else:
+                self.session[account] = key
             self.session_sources[account] = "keychain" if remember else "session"
-            self.cached.pop(account, None)
 
     def clear(self, provider: str, endpoint: str):
         account = provider if provider == "openrouter" else f"local:{endpoint}"
@@ -137,9 +138,10 @@ class Credentials:
         except Exception:
             raise ValueError("Could not remove the saved key from Keychain. No settings were changed.") from None
         with self.lock:
-            # An explicit removal also masks an inherited environment key in this session.
-            self.session[account] = ""
-            self.cached.pop(account, None)
+            # Mask an inherited environment key only in this process. Keep
+            # reading Keychain so a later external CLI update becomes visible.
+            self.session.pop(account, None)
+            self.session_sources[account] = "keychain"
 
 
 class SpeechService:
@@ -154,12 +156,59 @@ class SpeechService:
 
     def settings(self) -> SpeechSettings:
         saved = self.config.get("speech")
-        return SpeechSettings.model_validate({"local_base_url": os.environ.get("CLARITY_LOCAL_BASE_URL", DEFAULT_LOCAL_URL), **(saved or {})})
+        return self._validated_settings(saved or {})
+
+    @staticmethod
+    def _validated_settings(values: dict) -> SpeechSettings:
+        try:
+            if not isinstance(values, dict):
+                raise ValueError
+            return SpeechSettings.model_validate({"local_base_url": os.environ.get("CLARITY_LOCAL_BASE_URL", DEFAULT_LOCAL_URL), **values})
+        except (ValidationError, ValueError):
+            raise ValueError("Invalid speech settings. Check the supported fields, provider, and local server URL.") from None
+
+    def configure(self, patch: dict) -> dict:
+        """Validate and merge a settings-only patch in a single transaction."""
+        if not isinstance(patch, dict):
+            raise ValueError("Speech settings must be a JSON object.")
+        self.config.update("speech", patch, nested=True, validate=lambda values: self._validated_settings(values).model_dump())
+        return self.public_settings()
+
+    @staticmethod
+    def _provider(provider: str) -> Provider:
+        if provider not in ("openrouter", "local"):
+            raise ValueError("Choose openrouter or local as the speech provider.")
+        return provider
+
+    def set_key(self, provider: Provider, key: str, remember: bool = True) -> dict:
+        """Change only the credential at the provider's current endpoint."""
+        provider = self._provider(provider)
+        if not isinstance(key, str) or not key.strip() or len(key.strip()) > 8192 or any(character.isspace() for character in key.strip()):
+            raise ValueError("The key must be a nonempty, single token of at most 8192 characters.")
+        settings = self.settings()
+        endpoint = OPENROUTER_URL if provider == "openrouter" else settings.local_base_url
+        self.credentials.set(provider, endpoint, key.strip(), remember)
+        return self.public_settings()
+
+    def remember_key(self, provider: Provider) -> dict:
+        """Persist an existing session/environment key without resaving settings."""
+        connection = self.connection(self._provider(provider))
+        if not connection.key:
+            raise ValueError("Enter an API key before choosing Keychain storage.")
+        self.credentials.set(connection.provider, connection.base_url, connection.key, True)
+        return self.public_settings()
+
+    def clear_key(self, provider: Provider) -> dict:
+        """Remove only the current endpoint's credential, leaving settings intact."""
+        provider = self._provider(provider)
+        settings = self.settings()
+        endpoint = OPENROUTER_URL if provider == "openrouter" else settings.local_base_url
+        self.credentials.clear(provider, endpoint)
+        return self.public_settings()
 
     def save_choices(self, provider: Provider, preferences: SpeechPreferences) -> dict:
         # Background model/voice saves cannot change connection URLs or keys.
-        self.config.update("speech", {"provider": provider, provider: preferences.model_dump()})
-        return self.public_settings()
+        return self.configure({"provider": provider, provider: preferences.model_dump()})
 
     def public_settings(self) -> dict:
         settings = self.settings()
@@ -188,14 +237,16 @@ class SpeechService:
 
     def connection(self, provider: Provider | None = None, base_url: str | None = None) -> Connection:
         settings = self.settings()
-        provider = provider or settings.provider
+        provider = self._provider(provider or settings.provider)
+        if base_url is not None and provider != "local":
+            raise ValueError("A base URL override requires the local speech provider.")
         endpoint = OPENROUTER_URL if provider == "openrouter" else local_url(base_url or settings.local_base_url)
         key, _ = self.credentials.get(provider, endpoint)
         return Connection(provider, endpoint, key)
 
-    def resolve(self, provider=None, model=None, voice=None, instructions=None) -> tuple[Connection, str, str, str]:
+    def resolve(self, provider=None, model=None, voice=None, instructions=None, base_url=None) -> tuple[Connection, str, str, str]:
         settings = self.settings()
-        connection = self.connection(provider)
+        connection = self.connection(provider, base_url)
         preferences = getattr(settings, connection.provider)
         model = (model if model is not None else preferences.model).strip()
         default_voice = preferences.voice or (os.environ.get("OPENROUTER_VOICE", "") if connection.provider == "openrouter" else "")

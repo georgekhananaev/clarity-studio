@@ -135,7 +135,8 @@ Inspect existing captions first: `./clarity-cli show {project.id}`.
 Apply using the current revision (reload if it has changed):
 `./clarity-cli cues {project.id} --file /absolute/path/cues.json --revision REVISION`
 Then `./clarity-cli validate {project.id}` and export SRT for review.
-Do not call narration unless the user authorizes use of their OpenRouter credits.
+Stop after subtitle export for review. Generate narration only with the user's explicit
+approval, for either local or cloud speech. OpenRouter generation uses their credits.
 """
     atomic_write(directory / "AI-BRIEF.md", brief)
     return {**manifest, "manifest": str(directory / "manifest.json"), "brief": str(directory / "AI-BRIEF.md")}
