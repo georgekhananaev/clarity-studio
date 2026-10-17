@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>Clarity Studio</title>
+  <defs>
+    <linearGradient id="tile" x1="20" y1="0" x2="44" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1D2C21"/>
+      <stop offset="55%" stop-color="#121B15"/>
+      <stop offset="100%" stop-color="#0B110D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="22" cy="10" r="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9BE076" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#9BE076" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="16" y1="0" x2="48" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E5FAD0" stop-opacity="0.5"/>
+      <stop offset="45%" stop-color="#C5E6A6" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#68B04C" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="c-frame" x1="13" y1="13" x2="46" y2="51" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F4FFE8"/>
+      <stop offset="50%" stop-color="#C8EAAC"/>
+      <stop offset="100%" stop-color="#7EC95A"/>
+    </linearGradient>
+    <linearGradient id="cue-seg" x1="40" y1="44" x2="50" y2="51" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8AD668"/>
+      <stop offset="100%" stop-color="#489B44"/>
+    </linearGradient>
+    <linearGradient id="echo" x1="25" y1="24" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7CC95B"/>
+      <stop offset="100%" stop-color="#2E6F40"/>
+    </linearGradient>
+    <linearGradient id="prism" x1="29" y1="23" x2="45" y2="41" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#D2F0B6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="15" fill="url(#tile)"/>
+  <rect width="64" height="64" rx="15" fill="url(#glow)"/>
+  <rect x="0.6" y="0.6" width="62.8" height="62.8" rx="14.4" stroke="url(#rim)" stroke-width="1.2"/>
+
+  <path d="M 46.5 16.75 H 26.5 A 9.75 9.75 0 0 0 16.75 26.5 V 37.5 A 9.75 9.75 0 0 0 26.5 47.25 H 32.5" stroke="url(#c-frame)" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M 43.25 47.25 H 46.5" stroke="url(#cue-seg)" stroke-width="7.5" stroke-linecap="round"/>
+
+  <path d="M26.2 25.1a1.65 1.65 0 0 1 2.52-1.4l10.8 6.5a1.65 1.65 0 0 1 0 2.8l-10.8 6.5a1.65 1.65 0 0 1-2.52-1.4v-13Z" fill="url(#echo)" opacity="0.6"/>
+  <path d="M29.8 25.1a1.65 1.65 0 0 1 2.52-1.4l10.8 6.5a1.65 1.65 0 0 1 0 2.8l-10.8 6.5a1.65 1.65 0 0 1-2.52-1.4v-13Z" fill="url(#prism)"/>
+</svg>

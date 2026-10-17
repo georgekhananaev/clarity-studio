@@ -1,0 +1,9 @@
+#!/bin/zsh
+set -eu
+cd "${0:A:h}"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+if [[ ! -x .venv/bin/python ]]; then
+  print -u2 'Run ./setup.command first.'
+  exit 1
+fi
+exec .venv/bin/python -m clarity "$@"
