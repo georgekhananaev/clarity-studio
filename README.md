@@ -21,6 +21,17 @@ Clarity prepares the evidence and manages captions; your AI agent supplies the
 visual understanding and explanations. It does not automatically transcribe
 speech or generate explanations on its own.
 
+## Example video and tutorial
+
+This narrated example shows what you can create with Clarity Studio and walks
+through importing recordings, editing and timing captions, playback, exports,
+preferences, and narration setup.
+
+[![Watch the Clarity Studio example video and tutorial](https://i.ytimg.com/vi/TamkPEVWvXA/hqdefault.jpg)](https://www.youtube.com/watch?v=TamkPEVWvXA)
+
+[Watch the full video on YouTube](https://www.youtube.com/watch?v=TamkPEVWvXA)
+with English narration, captions, and chapter timestamps.
+
 ## Quick start
 
 You need **macOS**, **Python 3.12 or newer**, [Homebrew](https://brew.sh), and
