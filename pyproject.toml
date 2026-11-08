@@ -12,7 +12,7 @@ dependencies = [
   "uvicorn>=0.38,<1",
   "httpx>=0.28,<1",
   "python-multipart>=0.0.20,<1",
-  "pillow>=11,<13",
+  "pillow>=11,<14",
   "keyring>=25,<27",
 ]
 
