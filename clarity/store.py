@@ -39,7 +39,11 @@ class Store:
     def directory(self, project_id: str) -> Path:
         if not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", project_id):
             raise ValueError("Invalid project ID.")
-        return self.root / project_id
+        root = str(self.root)
+        path = os.path.normpath(os.path.join(root, project_id))
+        if not path.startswith(root + os.sep):
+            raise ValueError("Invalid project ID.")
+        return Path(path)
 
     @contextmanager
     def locked(self, project_id: str):
@@ -93,8 +97,8 @@ class Store:
             return updated
 
     def asset(self, project_id: str, relative: str) -> Path:
-        directory = self.directory(project_id).resolve()
-        path = (directory / relative).resolve()
-        if not path.is_relative_to(directory) or not path.is_file():
+        directory = os.path.realpath(self.directory(project_id))
+        path = os.path.realpath(os.path.join(directory, relative))
+        if not path.startswith(directory + os.sep) or not os.path.isfile(path):
             raise FileNotFoundError("File not found.")
-        return path
+        return Path(path)
